@@ -12,8 +12,7 @@ export default async function RecetasPage() {
     redirect("/auth/login")
   }
 
-  // Obtener perfil para filtrar por preferencias
-  const { data: profile } = await supabase.from("profiles").select("tipo_dieta").eq("id", user.id).single()
+  const { data: profile } = await supabase.from("profiles").select("tipos_dieta").eq("id", user.id).single()
 
   // Obtener intolerancias del usuario
   const { data: intolerancias } = await supabase.from("intolerancias").select("ingrediente_id").eq("user_id", user.id)
@@ -63,7 +62,7 @@ export default async function RecetasPage() {
     <RecipesView
       userId={user.id}
       recetas={recetasFiltradas}
-      tipoDieta={profile?.tipo_dieta}
+      tiposDieta={profile?.tipos_dieta || []}
       recetasFavoritasIds={recetasFavoritasIds}
     />
   )

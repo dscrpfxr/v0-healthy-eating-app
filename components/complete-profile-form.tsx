@@ -19,7 +19,7 @@ interface CompleteProfileFormProps {
     peso?: number
     altura?: number
     genero?: string
-    tipo_dieta?: string
+    tipos_dieta?: string
   } | null
 }
 
@@ -27,7 +27,7 @@ export function CompleteProfileForm({ userId, currentProfile }: CompleteProfileF
   const [peso, setPeso] = useState(currentProfile?.peso?.toString() || "")
   const [altura, setAltura] = useState(currentProfile?.altura?.toString() || "")
   const [genero, setGenero] = useState(currentProfile?.genero || "")
-  const [tipoDieta, setTipoDieta] = useState(currentProfile?.tipo_dieta || "")
+  const [tipoDieta, setTipoDieta] = useState(currentProfile?.tipos_dieta || "")
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
@@ -51,7 +51,7 @@ export function CompleteProfileForm({ userId, currentProfile }: CompleteProfileF
           peso: Number.parseFloat(peso),
           altura: Number.parseFloat(altura),
           genero,
-          tipo_dieta: tipoDieta,
+          tipos_dieta: tipoDieta,
           updated_at: new Date().toISOString(),
         })
         .eq("id", userId)
@@ -142,9 +142,9 @@ export function CompleteProfileForm({ userId, currentProfile }: CompleteProfileF
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="tipo_dieta">Tipo de Dieta (opcional)</Label>
+              <Label htmlFor="tipos_dieta">Tipo de Dieta (opcional)</Label>
               <Select value={tipoDieta} onValueChange={setTipoDieta}>
-                <SelectTrigger id="tipo_dieta">
+                <SelectTrigger id="tipos_dieta">
                   <SelectValue placeholder="Selecciona tu tipo de dieta" />
                 </SelectTrigger>
                 <SelectContent>

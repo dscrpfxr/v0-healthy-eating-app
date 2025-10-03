@@ -36,11 +36,11 @@ interface Receta {
 interface RecipesViewProps {
   userId: string
   recetas: Receta[]
-  tipoDieta?: string
+  tiposDieta: string[]
   recetasFavoritasIds: string[]
 }
 
-export function RecipesView({ userId, recetas, tipoDieta, recetasFavoritasIds }: RecipesViewProps) {
+export function RecipesView({ userId, recetas, tiposDieta, recetasFavoritasIds }: RecipesViewProps) {
   const [busqueda, setBusqueda] = useState("")
   const [filtroEtiqueta, setFiltroEtiqueta] = useState<string | null>(null)
   const router = useRouter()
@@ -66,10 +66,10 @@ export function RecipesView({ userId, recetas, tipoDieta, recetasFavoritasIds }:
     return coincideBusqueda && coincideEtiqueta
   })
 
-  // Recetas recomendadas (según tipo de dieta)
   const recetasRecomendadas = recetasFiltradas.filter((receta) => {
-    if (!tipoDieta) return true
-    return receta.receta_etiquetas.some((e) => e.etiqueta === tipoDieta)
+    if (!tiposDieta || tiposDieta.length === 0) return true
+    // Recipe matches if it has at least one tag that matches any of the user's diet types
+    return receta.receta_etiquetas.some((e) => tiposDieta.includes(e.etiqueta))
   })
 
   const etiquetasUnicas = Array.from(new Set(recetas.flatMap((r) => r.receta_etiquetas.map((e) => e.etiqueta))))

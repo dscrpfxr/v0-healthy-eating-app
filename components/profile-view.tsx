@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import Link from "next/link"
 
 interface ProfileViewProps {
@@ -24,19 +25,26 @@ interface ProfileViewProps {
     altura?: number
     genero?: string
     tipo_dieta?: string
+    tipos_dieta?: string[]
     nivel_actividad?: string
   } | null
+  ingredientes: Array<{
+    id: string
+    nombre: string
+  }>
+  intolerancias: string[]
 }
 
-export function ProfileView({ user, profile }: ProfileViewProps) {
+export function ProfileView({ user, profile, ingredientes, intolerancias }: ProfileViewProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [nombre, setNombre] = useState(profile?.nombre || "")
   const [edad, setEdad] = useState(profile?.edad?.toString() || "")
   const [peso, setPeso] = useState(profile?.peso?.toString() || "")
   const [altura, setAltura] = useState(profile?.altura?.toString() || "")
   const [genero, setGenero] = useState(profile?.genero || "")
-  const [tipoDieta, setTipoDieta] = useState(profile?.tipo_dieta || "")
+  const [tiposDieta, setTiposDieta] = useState<string[]>(profile?.tipos_dieta || [])
   const [nivelActividad, setNivelActividad] = useState(profile?.nivel_actividad || "moderado")
+  const [intoleranciasList, setIntoleranciasList] = useState<string[]>(intolerancias)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
@@ -44,6 +52,16 @@ export function ProfileView({ user, profile }: ProfileViewProps) {
   const calcularIMC = (peso: number, altura: number) => {
     const alturaMetros = altura / 100
     return (peso / (alturaMetros * alturaMetros)).toFixed(1)
+  }
+
+  const handleToggleDietType = (dietType: string) => {
+    setTiposDieta((prev) => (prev.includes(dietType) ? prev.filter((d) => d !== dietType) : [...prev, dietType]))
+  }
+
+  const handleToggleIntolerance = (ingredienteId: string) => {
+    setIntoleranciasList((prev) =>
+      prev.includes(ingredienteId) ? prev.filter((i) => i !== ingredienteId) : [...prev, ingredienteId],
+    )
   }
 
   const handleSave = async (e: React.FormEvent) => {
@@ -54,25 +72,62 @@ export function ProfileView({ user, profile }: ProfileViewProps) {
     const supabase = createClient()
 
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          nombre,
-          edad: Number.parseInt(edad),
-          peso: peso ? Number.parseFloat(peso) : null,
-          altura: altura ? Number.parseFloat(altura) : null,
-          genero: genero || null,
-          tipo_dieta: tipoDieta || null,
-          nivel_actividad: nivelActividad || "moderado",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", user.id)
+      console.log("[v0] Guardando perfil con tipos_dieta:", tiposDieta)
+      console.log("[v0] Guardando intolerancias:", intoleranciasList)
 
-      if (error) throw error
+      const profileUpdate = {
+        nombre,
+        edad: Number.parseInt(edad),
+        peso: peso ? Number.parseFloat(peso) : null,
+        altura: altura ? Number.parseFloat(altura) : null,
+        genero: genero || null,
+        tipos_dieta: tiposDieta,
+        nivel_actividad: nivelActividad || "moderado",
+        updated_at: new Date().toISOString(),
+      }
+
+      console.log("[v0] Datos a actualizar:", profileUpdate)
+
+      const { error: profileError } = await supabase.from("profiles").update(profileUpdate).eq("id", user.id)
+
+      if (profileError) {
+        console.error("[v0] Error al actualizar perfil:", profileError)
+        throw profileError
+      }
+
+      console.log("[v0] Perfil actualizado exitosamente")
+
+      const { error: deleteError } = await supabase.from("intolerancias").delete().eq("user_id", user.id)
+
+      if (deleteError) {
+        console.error("[v0] Error al eliminar intolerancias:", deleteError)
+        throw deleteError
+      }
+
+      console.log("[v0] Intolerancias eliminadas")
+
+      if (intoleranciasList.length > 0) {
+        const intolerancesToInsert = intoleranciasList.map((ingredienteId) => ({
+          user_id: user.id,
+          ingrediente_id: ingredienteId,
+        }))
+
+        console.log("[v0] Insertando intolerancias:", intolerancesToInsert)
+
+        const { error: intoleranciaError } = await supabase.from("intolerancias").insert(intolerancesToInsert)
+
+        if (intoleranciaError) {
+          console.error("[v0] Error al insertar intolerancias:", intoleranciaError)
+          throw intoleranciaError
+        }
+
+        console.log("[v0] Intolerancias insertadas exitosamente")
+      }
 
       setIsEditing(false)
       router.refresh()
     } catch (error: unknown) {
+      console.error("[v0] Error general al guardar:", error)
       setError(error instanceof Error ? error.message : "Ocurrió un error al guardar")
     } finally {
       setIsLoading(false)
@@ -92,6 +147,16 @@ export function ProfileView({ user, profile }: ProfileViewProps) {
       : peso && altura && Number.parseFloat(peso) > 0 && Number.parseFloat(altura) > 0
         ? calcularIMC(Number.parseFloat(peso), Number.parseFloat(altura))
         : null
+
+  const dietTypes = [
+    { value: "omnivora", label: "Omnívora" },
+    { value: "vegetariana", label: "Vegetariana" },
+    { value: "vegana", label: "Vegana" },
+    { value: "pescetariana", label: "Pescetariana" },
+    { value: "sin_gluten", label: "Sin Gluten" },
+    { value: "cetogenica", label: "Cetogénica" },
+    { value: "paleo", label: "Paleo" },
+  ]
 
   return (
     <div className="container mx-auto max-w-4xl p-6">
@@ -166,21 +231,24 @@ export function ProfileView({ user, profile }: ProfileViewProps) {
                     </Select>
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="tipo_dieta">Tipo de Dieta</Label>
-                    <Select value={tipoDieta} onValueChange={setTipoDieta}>
-                      <SelectTrigger id="tipo_dieta">
-                        <SelectValue placeholder="Selecciona tu tipo de dieta" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="omnivora">Omnívora</SelectItem>
-                        <SelectItem value="vegetariana">Vegetariana</SelectItem>
-                        <SelectItem value="vegana">Vegana</SelectItem>
-                        <SelectItem value="pescetariana">Pescetariana</SelectItem>
-                        <SelectItem value="sin_gluten">Sin Gluten</SelectItem>
-                        <SelectItem value="cetogenica">Cetogénica</SelectItem>
-                        <SelectItem value="paleo">Paleo</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label>Tipos de Dieta (puedes seleccionar varios)</Label>
+                    <div className="grid gap-3 rounded-lg border p-4">
+                      {dietTypes.map((diet) => (
+                        <div key={diet.value} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={diet.value}
+                            checked={tiposDieta.includes(diet.value)}
+                            onCheckedChange={() => handleToggleDietType(diet.value)}
+                          />
+                          <label
+                            htmlFor={diet.value}
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                          >
+                            {diet.label}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="nivel_actividad">Nivel de Actividad Física</Label>
@@ -196,6 +264,28 @@ export function ProfileView({ user, profile }: ProfileViewProps) {
                         <SelectItem value="muy_activo">Muy Activo (ejercicio muy intenso o trabajo físico)</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Intolerancias Alimentarias</Label>
+                    <div className="max-h-60 overflow-y-auto rounded-lg border p-4">
+                      <div className="grid gap-3">
+                        {ingredientes.map((ingrediente) => (
+                          <div key={ingrediente.id} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`intol-${ingrediente.id}`}
+                              checked={intoleranciasList.includes(ingrediente.id)}
+                              onCheckedChange={() => handleToggleIntolerance(ingrediente.id)}
+                            />
+                            <label
+                              htmlFor={`intol-${ingrediente.id}`}
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                            >
+                              {ingrediente.nombre}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                   {error && (
                     <div className="rounded-md bg-red-50 p-3">
@@ -248,12 +338,45 @@ export function ProfileView({ user, profile }: ProfileViewProps) {
                   <p className="font-medium capitalize">{profile?.genero || "No especificado"}</p>
                 </div>
                 <div className="grid gap-1">
-                  <p className="text-sm text-muted-foreground">Tipo de Dieta</p>
-                  <p className="font-medium capitalize">{profile?.tipo_dieta || "No especificado"}</p>
+                  <p className="text-sm text-muted-foreground">Tipos de Dieta</p>
+                  <div className="flex flex-wrap gap-2">
+                    {tiposDieta.length > 0 ? (
+                      tiposDieta.map((tipo) => (
+                        <span
+                          key={tipo}
+                          className="rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-800"
+                        >
+                          {dietTypes.find((d) => d.value === tipo)?.label || tipo}
+                        </span>
+                      ))
+                    ) : (
+                      <p className="font-medium">No especificado</p>
+                    )}
+                  </div>
                 </div>
                 <div className="grid gap-1">
                   <p className="text-sm text-muted-foreground">Nivel de Actividad</p>
                   <p className="font-medium capitalize">{profile?.nivel_actividad || "Moderado"}</p>
+                </div>
+                <div className="grid gap-1">
+                  <p className="text-sm text-muted-foreground">Intolerancias Alimentarias</p>
+                  <div className="flex flex-wrap gap-2">
+                    {intoleranciasList.length > 0 ? (
+                      intoleranciasList.map((intolId) => {
+                        const ingrediente = ingredientes.find((i) => i.id === intolId)
+                        return (
+                          <span
+                            key={intolId}
+                            className="rounded-full bg-red-100 px-3 py-1 text-sm font-medium text-red-800"
+                          >
+                            {ingrediente?.nombre || "Desconocido"}
+                          </span>
+                        )
+                      })
+                    ) : (
+                      <p className="font-medium">Ninguna</p>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
